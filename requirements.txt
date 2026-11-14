@@ -1,0 +1,2 @@
+# Python 3.11. No third-party packages yet (the standard library covers ingest, search and answers).
+# `openai` is added when the optional LLM path for open-ended questions is built.
