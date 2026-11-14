@@ -1,0 +1,27 @@
+# Website snapshot data: never commit (shared for the take-home only)
+snapshots/
+snapshots_zip/
+*.zip
+
+# Anything built from the snapshots at ingest (caches, indexes)
+.cache/
+cache/
+*.pkl
+*.sqlite
+*.db
+
+# Secrets
+.env
+.env.*
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Scorer output
+results/
+
+.DS_Store
