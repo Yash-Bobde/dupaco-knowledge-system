@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import branches as branch_records
+from .branches import Branch, Closure
 from .facts import RateFact, rate_facts
 from .pages import CleanPage, clean_page
 from .tables import Table, find_tables
@@ -20,6 +22,8 @@ class SnapshotData:
     pages: dict[str, CleanPage] = field(default_factory=dict)   # url -> page (urls are unique; paths are not)
     tables: dict[str, list[Table]] = field(default_factory=dict)  # url -> tables on that page
     facts: list[RateFact] = field(default_factory=list)
+    branches: list[Branch] = field(default_factory=list)        # from /contact and branch-opening releases
+    closures: list[Closure] = field(default_factory=list)       # branch-closure announcements
 
 
 class Store:
@@ -35,6 +39,7 @@ class Store:
             data.pages[p.url] = page
             data.tables[p.url] = tables
             data.facts.extend(rate_facts(snapshot.snapshot_id, page, tables))
+        data.branches, data.closures = branch_records.extract(list(data.pages.values()))
         self.snapshots.append(data)
         self.snapshots.sort(key=lambda s: s.taken_on)
         return data
