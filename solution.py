@@ -15,21 +15,22 @@ _HERE = str(Path(__file__).resolve().parent)
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
+from dkb.answer import answer_question  # noqa: E402
 from dkb.shapes import Answer, Conflict, Snapshot  # noqa: E402
 from dkb.store import Store  # noqa: E402
-
-REFUSAL = "That isn't listed on Dupaco's website. Please contact Dupaco directly for help."
 
 
 class DupacoKnowledge:
     def __init__(self) -> None:
-        self.store = Store()  # every snapshot's cleaned pages, tables and rate facts
+        self.store = Store()        # every snapshot's cleaned pages, tables and rate facts
+        self._answers: dict = {}    # (snapshot, question slots) -> Answer
 
     def ingest(self, snapshot: Snapshot) -> None:
         self.store.add(snapshot)
+        self._answers.clear()
 
     def answer(self, question: str, as_of: Optional[str] = None) -> Answer:
-        return Answer(text=REFUSAL, sources=[], confident=False)
+        return answer_question(self.store, question, as_of, self._answers)
 
     def conflicts(self) -> list[Conflict]:
         return []

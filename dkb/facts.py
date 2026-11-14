@@ -181,6 +181,7 @@ class RateFact:
     row: str                          # the table row, verbatim (used as the quote)
     labels: tuple[str, ...]
     table_line: int
+    desc: tuple[str, ...] = ()        # the row's descriptive cells as printed (product / term / tier), for labels
 
     @property
     def key(self) -> tuple:
@@ -232,6 +233,8 @@ def rate_facts(snapshot_id: str, page: CleanPage, tables: list[Table]) -> list[R
             product, ira_type, program = _refine(family, product, first, t.labels)
             segment = "business" if page.path.startswith("/business") or "business" in matched else "personal"
             other_cells = [c for i, c in enumerate(row) if i not in rate_cols]
+            desc = tuple(c for i, c in enumerate(row) if c and c not in ("—", "-", "–")
+                         and (i == tier_col or t.columns[i] in ("text", "term", "model_year")))
 
             tier_kind = tier_label = None
             tier: Optional[tuple] = None
@@ -258,5 +261,6 @@ def rate_facts(snapshot_id: str, page: CleanPage, tables: list[Table]) -> list[R
                     tier_low=tier[0] if tier else None, tier_high=tier[1] if tier else None, tier_label=tier_label,
                     metric=metric, value=value, numbers=numbers, effective=t.effective,
                     effective_line=t.effective_line, row=" | ".join(row), labels=t.labels, table_line=t.line,
+                    desc=desc,
                 ))
     return out
