@@ -25,8 +25,8 @@ _MD_ESCAPE = re.compile(r"\\([\\*#_$\[\]()|-])")
 
 
 def clean_cell(cell: str) -> str:
-    """Cell text as printed, minus markdown escapes, bold markers and a glued footnote digit."""
-    s = _MD_ESCAPE.sub(r"\1", cell).replace("**", "").strip()
+    """Cell text as printed, minus markdown escapes, bold markers, non-breaking spaces and a glued footnote digit."""
+    s = _MD_ESCAPE.sub(r"\1", cell).replace("**", "").replace("\xa0", " ").strip()
     return _GLUED_FOOTNOTE.sub(r"\1", s)
 
 
@@ -88,6 +88,8 @@ def _label(line: str) -> Optional[str]:
         return None
     if m := _LIST_LINK.match(s):
         return m.group(1).strip()
+    if s.startswith(("- ", "* ")):  # bullet items are list content ("- Skip the $10 monthly fee ..."), not labels
+        return None
     if _LINK_ONLY.match(s) or _FOOTNOTE_LINE.match(s) or effective_date(s):
         return None
     s = _HEADING.sub("", s).replace("**", "").strip()
