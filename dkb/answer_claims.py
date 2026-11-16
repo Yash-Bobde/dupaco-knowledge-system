@@ -42,7 +42,10 @@ AREA_Q = re.compile(r"\b(?:which|what) (?:states?|areas?|counties|regions?)\b|\b
 JOIN_Q = re.compile(r"\b(?:join(?:ing)? (?:dupaco|the credit union)|become a (?:dupaco )?member|"
                     r"sign up for (?:a )?(?:dupaco )?membership|open a membership)\b|\bjoin(?: online)?\s*\??$")
 UPDATE_Q = re.compile(r"\b(?:update|change|correct)\b.*\b(?:contact|address|phone|e-?mail|information|info|name)\b")
-PHONE_Q = re.compile(r"\b(?:phone|telephone|call|contact|customer service|reach)\b")
+# Asking for Dupaco's number, not just mentioning a phone ("Can I deposit a check with my phone?" is not one).
+PHONE_Q = re.compile(r"\b(?:(?:phone|telephone|contact|toll[- ]free) (?:number|#)|number (?:to|i can) call|"
+                     r"(?:call|contact|reach|phone|talk to|speak (?:to|with)) (?:dupaco|you|someone|a person|"
+                     r"the credit union|customer service|member service|member care)|customer service|member service)\b")
 _NUMBER = re.compile(r"\d[\d,]*")
 
 

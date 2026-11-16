@@ -114,6 +114,49 @@ def pick(candidates: list[RateFact]) -> Optional[Pick]:
     return Pick(winner=win[0], support=tuple(win[1:]), losers=losers, reason=reason)
 
 
+def _question_key(f: RateFact) -> tuple:
+    return (f.family, f.product, f.segment, f.ira_type, f.program, f.term_months, f.metric)
+
+
+def _overlap(a: RateFact, b: RateFact) -> bool:
+    """Could both facts answer the same question? (Tiers overlap, or one of them has no tier.)"""
+    if a.tier_kind is None or b.tier_kind is None:
+        return True
+    if a.tier_kind != b.tier_kind:
+        return False
+    lo_a = a.tier_low if a.tier_low is not None else float("-inf")
+    hi_a = a.tier_high if a.tier_high is not None else float("inf")
+    lo_b = b.tier_low if b.tier_low is not None else float("-inf")
+    hi_b = b.tier_high if b.tier_high is not None else float("inf")
+    return lo_a <= hi_b and lo_b <= hi_a
+
+
+def outranked(facts: list[RateFact]) -> dict[int, RateFact]:
+    """Stale facts: id(fact) -> the best fact that beats it (same product, term, metric and an overlapping tier,
+    a strictly better source by R1/R2, and a different value). Facts from equally good sources never outrank each
+    other (overlapping "or less" tiers of one table are different tiers, not a conflict)."""
+    groups: dict[tuple, list[RateFact]] = {}
+    for f in facts:
+        groups.setdefault(_question_key(f), []).append(f)
+    out: dict[int, RateFact] = {}
+    for fs in groups.values():
+        fs = sorted(fs, key=lambda f: (source_key(f), f.url, f.table_line))
+        for i, f in enumerate(fs):
+            for g in fs[:i]:
+                if source_key(g) < source_key(f) and g.numbers != f.numbers and _overlap(f, g):
+                    out[id(f)] = g
+                    break
+    return out
+
+
+def stale_percents(facts: list[RateFact]) -> set[float]:
+    """Rate values that only ever lose in this snapshot (a value that wins anywhere is not stale)."""
+    beaten = outranked(facts)
+    losing = {n for f in facts if id(f) in beaten for n in f.numbers}
+    winning = {n for f in facts if id(f) not in beaten for n in f.numbers}
+    return {round(n, 3) for n in losing - winning}
+
+
 def winning_table(candidates: list[RateFact]) -> list[RateFact]:
     """All facts (in row order) of the single best source table among the candidates. Used when an answer lists
     several tiers or terms of one product, so tiers that only stale tables still show don't sneak in."""

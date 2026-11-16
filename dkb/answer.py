@@ -1,21 +1,28 @@
 """Route a question to the answer type that can handle it; refuse when none can.
 
 Order: rate questions (truth table) -> branch questions (addresses, hours, closures) -> link questions (rates pages,
-locator, join, online banking) -> company facts (branch count, Forbes, routing number, phone, who can join) -> refusal.
+locator, join, online banking) -> company facts (branch count, Forbes, routing number, phone, who can join) ->
+sentence search over the site (open-ended questions) -> refusal.
 Each answer type returns None when the question isn't one it can read, so the next one gets a turn.
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from .answer_branches import branch_answer
 from .answer_claims import claim_answer
 from .answer_links import link_answer
 from .answer_rates import rate_answer
+from .answer_search import search_answer
 from .question import read
 from .reply import refusal
 from .shapes import Answer
 from .store import Store
+
+# A question asking for a rate is answered from the rate tables or refused: never from loose sentences, where
+# old rates and other products' rates live.
+RATE_ASK = re.compile(r"\b(?:rates?|aprs?|apys?|dividend rates?|yields?)\b|%")
 
 
 def answer_question(store: Store, question: str, as_of: Optional[str] = None,
@@ -30,5 +37,11 @@ def answer_question(store: Store, question: str, as_of: Optional[str] = None,
     cache = {} if cache is None else cache
     if key not in cache:
         cache[key] = (rate_answer(q, snap) or branch_answer(q, snap, ref_date) or link_answer(q, snap)
-                      or claim_answer(q, snap, ref_date) or refusal())
+                      or claim_answer(q, snap, ref_date) or _open_ended(q, snap))
     return cache[key]
+
+
+def _open_ended(q, snap) -> Answer:
+    if q.not_on_site or RATE_ASK.search(q.text):
+        return refusal()
+    return search_answer(q, snap) or refusal()

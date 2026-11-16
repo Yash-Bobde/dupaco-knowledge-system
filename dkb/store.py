@@ -14,7 +14,9 @@ from .claims import Claim, Membership, SiteValue, article_claims, membership, si
 from .facts import RateFact, rate_facts
 from .links import Link, page_links
 from .pages import CleanPage, clean_page
+from .search import Index
 from .tables import Table, find_tables
+from .truth import stale_percents
 
 
 @dataclass
@@ -31,6 +33,7 @@ class SnapshotData:
     membership: Optional[Membership] = None                     # who can join, from the join page
     links: list[Link] = field(default_factory=list)             # every anchor -> target on the site
     live_paths: set[str] = field(default_factory=set)           # paths crawled in this snapshot
+    index: Optional[Index] = None                               # sentence search (stale rate values removed)
 
 
 class Store:
@@ -38,7 +41,7 @@ class Store:
         self.snapshots: list[SnapshotData] = []   # oldest first
 
     def add(self, snapshot) -> SnapshotData:
-        """Clean every page of a harness Snapshot; extract its rate facts, branches, claims and links."""
+        """Clean every page of a harness Snapshot; extract its rate facts, branches, claims and links; index its text."""
         data = SnapshotData(snapshot.snapshot_id, snapshot.taken_on)
         for p in snapshot.pages:
             page = clean_page(p.url, p.title, p.markdown)
@@ -53,6 +56,7 @@ class Store:
         data.site = site_values(pages)
         data.membership = membership(pages)
         data.live_paths = {pg.path for pg in pages if pg.kind != "junk"}
+        data.index = Index(pages, stale_percents(data.facts))
         self.snapshots.append(data)
         self.snapshots.sort(key=lambda s: s.taken_on)
         return data
