@@ -133,7 +133,8 @@ def open_rate_conflicts(snap: SnapshotData) -> list[tuple[tuple, Conflict]]:
             values=[g.value for g in winners] + [f.value for f in losers],
             sources=[_source(g) for g in winners] + [_source(f) for f in losers],
             resolution="; ".join(f"{_label(g)} on {g.path}" for g in winners),
-            reason=_reason(pairs[0][0], pairs[0][1]) + f" (stale copies on {', '.join(stale_pages)})",
+            reason=_reason(*next(p for p in pairs if p[1].numbers == losers[0].numbers))
+                   + f" (stale copies on {', '.join(stale_pages)})",
         )
         rank = (1, _family_rank(w), PROGRAM_ORDER.get(w.program, 3), _term_rank(w), -len(stale_pages), conflict.topic)
         out.append((rank, conflict))

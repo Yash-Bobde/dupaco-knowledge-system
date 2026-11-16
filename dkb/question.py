@@ -57,7 +57,7 @@ _NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "s
               "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "eighteen": 18, "twenty": 20, "twenty-four": 24,
               "thirty": 30, "thirty-six": 36, "forty-eight": 48, "sixty": 60, "seventy-two": 72, "eighty-four": 84}
 _TERM = re.compile(r"\b(\d{1,3}|" + "|".join(sorted(_NUM_WORDS, key=len, reverse=True)) + r")[- ]?(months?|mo|years?|yrs?)\b")
-_MONEY = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\b|\b(\d+(?:\.\d+)?)\s*k\b")
+_MONEY = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k|thousand)?\b|\b(?!40[13]\s*k\b)(\d+(?:\.\d+)?)\s*k\b")  # not 401k/403k
 _YEAR = re.compile(r"\b(19[89]\d|20[0-4]\d)\b")
 _PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 _MONTH = (r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|"

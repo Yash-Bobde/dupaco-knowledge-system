@@ -26,7 +26,9 @@ PHONE_WORDS = re.compile(r"\b(?:phone|telephone|call)\b")
 CLOSE_WORDS = re.compile(r"\b(?:clos(?:e|es|ed|ing|ure)|still open|shut|last day)\b")
 _NAMED = re.compile(r"\bthe ((?:[\w'-]+ ){0,3}?[\w'-]+) (?:branch|location|office)\b")
 _NOT_A_NAME = {"dupaco", "nearest", "closest", "local", "main", "new", "same", "other", "your", "my", "each", "every",
-               "all", "full-service", "learning", "lab", "this", "that", "which", "credit", "union", "a", "one", "open"}
+               "all", "full-service", "learning", "lab", "this", "that", "which", "credit", "union", "a", "one", "open",
+               "drive-up", "drive-thru", "drive-through", "downtown", "nearby", "near", "any", "atm", "next", "current",
+               "old", "former", "first", "last", "biggest", "largest", "home", "physical"}
 
 
 def _named(keys, text: str) -> bool:

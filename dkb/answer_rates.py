@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from .facts import RateFact
+from .facts import LOAN_FAMILIES, RateFact
 from .question import Question
 from .reply import LINK_WORDS, refusal
 from .shapes import Answer, Source
@@ -110,7 +110,7 @@ def _rep(f: RateFact) -> Optional[float]:
     if f.tier_kind is None:
         return None
     if f.tier_low in (None, 0.0):
-        return f.tier_high
+        return f.tier_high if f.tier_high is not None else 0.0    # "$0 or more": any amount, so 0 is inside
     return f.tier_low if f.tier_high is None else (f.tier_low + f.tier_high) / 2
 
 
@@ -210,8 +210,9 @@ def rate_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
             r, fs = hit[0]
             text = f"Yes. {_label(r)} pays {_values(fs)}."
         else:
-            r, fs = max(lines, key=lambda x: x[1][-1].numbers)
-            text = f"No. {r.product} tops out at {_values([fs[-1]])}{_details(r)}."
+            loan = lines[0][0].family in LOAN_FAMILIES     # a borrower wants the lowest rate, a saver the highest
+            r, fs = (min if loan else max)(lines, key=lambda x: x[1][-1].numbers)
+            text = f"No. {r.product} {'starts at' if loan else 'tops out at'} {_values([fs[-1]])}{_details(r)}."
     elif q.superlative and len(lines) == 1:
         r, fs = lines[0]
         text = f"The {q.superlative} {r.product} {fs[-1].metric} is {fs[-1].value}{_details(r)}."

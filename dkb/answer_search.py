@@ -34,6 +34,7 @@ _ABBREV = re.compile(r"\b(?:[A-Z]|[A-Z][a-z]{1,3}|[a-z]\.[a-z]|No|St|Ave|Rd|Blvd
 _CONTINUES = re.compile(r"^(?:This|These|That|It|Its|They|Their|The (?:program|initiative|grant|benefit|account|card|"
                         r"loan|service|offer|app|feature)|You can|Members|Plus|Also|In addition)\b")
 _NUMBERS = re.compile(r"\d[\d,.]*\d|\d")
+_YEAR = re.compile(r"\b(?:19|20)\d\d\b")
 
 
 def sentences(text: str) -> list[str]:
@@ -117,13 +118,18 @@ def _twins(sentence: str, hit: Hit, index: Index) -> list[tuple[str, Hit]]:
         return []
     words = {t for t in terms(sentence) if not t.isdigit()}
     nums = set(_NUMBERS.findall(sentence))
+    years = set(_YEAR.findall(sentence))
+    if not years:
+        return []                       # only a figure reported "for a year" has versions to list side by side
     out, seen = [], {hit.passage.url}
     for other in index.search([frozenset((w,)) for w in sorted(words)], k=10):
         if other.passage.url in seen or not other.passage.published:
             continue
         for s in sentences(other.passage.text):
             sw = {t for t in terms(s) if not t.isdigit()}
-            if words and len(words & sw) / len(words | sw) >= TWIN and set(_NUMBERS.findall(s)) != nums:
+            other_years = set(_YEAR.findall(s))
+            if (words and len(words & sw) / len(words | sw) >= TWIN and set(_NUMBERS.findall(s)) != nums
+                    and other_years and other_years != years):
                 out.append((s, other))
                 seen.add(other.passage.url)
                 break
@@ -153,11 +159,11 @@ def _quoted(q: Question, snap: SnapshotData, cs: list[frozenset], hits: list[Hit
     twins = _twins(chosen[0], best, snap.index)
     if twins:
         picked = sorted([(chosen[0], best), *twins], key=lambda x: x[1].passage.published or "", reverse=True)
-    body = " ".join(s for s, _ in picked)
+    body = clean_text(" ".join(s for s, _ in picked))
+    if not body:
+        return None                     # every sentence held a banned phrase: refuse rather than answer nothing
     title = best.passage.title.split(" | ")[0].strip()
-    text = clean_text(f"{body} (Source: Dupaco's “{title}” page.)")
-    if not text:
-        return None
+    text = f"{body} (Source: Dupaco's “{title}” page.)"
     extra = [h for h in hits[:5] if h is not best]
     return Answer(text=text, sources=_sources(snap, picked, extra), confident=True)
 

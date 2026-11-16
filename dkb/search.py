@@ -93,6 +93,7 @@ _LINK_ONLY = re.compile(r"^(?:[-*]\s*)?(?:\[[^\]]*\]\([^)]*\)\s*)+$")
 _HEADING = re.compile(r"^(#{1,6})\s*(.*)$")
 _DECOR = re.compile(r"\*\*|__|(?<!\w)[*_](?=\S)|(?<=\S)[*_](?!\w)|\\(?=[\\|*_#\[\]()$-])")
 _DATELINE = re.compile(r"^[A-Z][A-Za-z. ]{1,30},\s*[A-Z][A-Za-z.]{1,12}\s*[—–]+\s*")
+_ABOUT = re.compile(r"^ABOUT DUPACO\b", re.I)
 
 
 def plain(md: str) -> str:
@@ -144,11 +145,18 @@ def _sections(text: str) -> tuple[tuple[str, str], ...]:
             out.append((heading, "\n".join(chunk)))
         blocks.clear()
 
+    in_about = False    # the "About Dupaco" boilerplate closing every release restates old counts: never searched
     for line in text.split("\n"):
         s = line.strip()
         if m := _HEADING.match(s):
             close_section()
             heading = plain(m.group(2))
+            in_about = False
+            continue
+        if _ABOUT.match(plain(s)):
+            close_section()
+            in_about = True
+        if in_about:
             continue
         if not s:
             close_block()

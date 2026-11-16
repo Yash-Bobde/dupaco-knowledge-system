@@ -10,7 +10,7 @@ import re
 from typing import Optional
 
 from . import links as L
-from .claims import Claim, current
+from .claims import current
 from .question import Question
 from .reply import refusal
 from .shapes import Answer, Source
@@ -32,7 +32,8 @@ BRANCH_COUNT_Q = re.compile(_count_q(r"branch(?:es)?|branch locations|locations|
                             r"|\b\d+ (?:full[- ]service )?(?:branch(?:es)?|locations|offices)\b")
 MEMBERS_Q = re.compile(_count_q("members").pattern + r"|\bmembership size\b")
 EMPLOYEES_Q = re.compile(_count_q("employees|people|staff|staff members").pattern)
-ASSETS_Q = re.compile(r"\b(?:dupaco'?s (?:total )?assets|total assets|assets (?:does|do) dupaco|how (?:big|large) is dupaco)\b")
+ASSETS_Q = re.compile(r"\b(?:dupaco'?s (?:total )?assets|total assets|assets (?:does|do) dupaco|how (?:big|large) is dupaco|"
+                      r"in assets|assets (?:exceed\w*|of|over|above|worth)|billion in)\b")
 # Membership eligibility only: "Do I qualify for an auto loan?" is about a loan, not about joining.
 ELIGIBLE_Q = re.compile(r"\b(?:eligib\w*|qualif\w*|who can (?:join|become)|can (?:i|anyone|anybody) (?:join|become)|"
                         r"requirements? (?:to|for) (?:join|membership|become))")
@@ -46,7 +47,7 @@ UPDATE_Q = re.compile(r"\b(?:update|change|correct)\b.*\b(?:contact|address|phon
 PHONE_Q = re.compile(r"\b(?:(?:phone|telephone|contact|toll[- ]free) (?:number|#)|number (?:to|i can) call|"
                      r"(?:call|contact|reach|phone|talk to|speak (?:to|with)) (?:dupaco|you|someone|a person|"
                      r"the credit union|customer service|member service|member care)|customer service|member service)\b")
-_NUMBER = re.compile(r"\d[\d,]*")
+_NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")     # "$3.6 billion" -> "3.6", not "3" and "6"
 
 
 def _source(url: str, snap: SnapshotData, quote: Optional[str]) -> Source:
@@ -58,9 +59,10 @@ def _claim_answer(snap: SnapshotData, topic: str, ref_date: str, template: str, 
     if not winner:
         return refusal()
     text = template.format(value=winner.value)
-    if q.yes_no and (asked := _NUMBER.findall(q.text)):
+    asked_text = q.text.replace(q.date_phrase.lower(), " ") if q.date_phrase else q.text   # not the date's year
+    if q.yes_no and (asked := _NUMBER.findall(asked_text)):
         stated = {n.replace(",", "") for n in _NUMBER.findall(winner.value)}
-        same = any(a.replace(",", "") in stated for a in asked)
+        same = all(a.replace(",", "") in stated for a in asked)
         text = ("Yes. " if same else "No. ") + text
     sources = [_source(c.url, snap, c.sentence) for c in [winner, *agreeing][:5]]
     note = None

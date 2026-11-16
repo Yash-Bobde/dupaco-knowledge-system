@@ -196,7 +196,10 @@ def _refine(family: str, product: str, first: str, labels: tuple[str, ...]) -> t
     ira_type = program = None
     if family == "ira":
         m = re.match(r"^(roth|traditional):\s*(.*)$", low)
-        ira_type, rest = m.group(1).title(), m.group(2)
+        if m:
+            ira_type, rest = m.group(1).title(), m.group(2)
+        else:                                   # IRA named only in a label or heading above the table
+            ira_type, rest = None, low
         if "special" in rest:
             product = "Fixed Jumbo IRA Special" if "jumbo" in rest else "Fixed IRA Special"
         elif "$" in rest:
@@ -234,7 +237,7 @@ def rate_facts(snapshot_id: str, page: CleanPage, tables: list[Table]) -> list[R
             segment = "business" if page.path.startswith("/business") or "business" in matched else "personal"
             other_cells = [c for i, c in enumerate(row) if i not in rate_cols]
             desc = tuple(c for i, c in enumerate(row) if c and c not in ("—", "-", "–")
-                         and (i == tier_col or t.columns[i] in ("text", "term", "model_year")))
+                         and (i == tier_col or (i < len(t.columns) and t.columns[i] in ("text", "term", "model_year"))))
 
             tier_kind = tier_label = None
             tier: Optional[tuple] = None

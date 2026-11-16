@@ -123,7 +123,8 @@ def closure_event(page: CleanPage) -> Optional[Closure]:
     if not (_CLOSE_TITLE.search(title) and "branch" in title.lower()):
         return None
     m = _TITLE_BRANCH.search(title)
-    words = [w for w in (m.group(1).split() if m else []) if w[0].isupper() and w.lower() not in ("dupaco", "plans", "closing")]
+    words = [w for w in (m.group(1).split() if m else []) if w[0].isupper()
+             and w.lower() not in ("dupaco", "plans", "closing", "close", "closes", "to", "will", "closure")]
     d = _CLOSE_DATE.search(page.text)
     if not words or not d:
         return None
