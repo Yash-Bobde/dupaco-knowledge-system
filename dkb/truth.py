@@ -118,33 +118,50 @@ def _question_key(f: RateFact) -> tuple:
     return (f.family, f.product, f.segment, f.ira_type, f.program, f.term_months, f.metric)
 
 
-def _overlap(a: RateFact, b: RateFact) -> bool:
-    """Could both facts answer the same question? (Tiers overlap, or one of them has no tier.)"""
+def _overlap(a: RateFact, b: RateFact) -> float:
+    """How much two tiers overlap (0 = not at all). No tier on either side counts as a full match."""
     if a.tier_kind is None or b.tier_kind is None:
-        return True
+        return float("inf")
     if a.tier_kind != b.tier_kind:
-        return False
-    lo_a = a.tier_low if a.tier_low is not None else float("-inf")
-    hi_a = a.tier_high if a.tier_high is not None else float("inf")
-    lo_b = b.tier_low if b.tier_low is not None else float("-inf")
-    hi_b = b.tier_high if b.tier_high is not None else float("inf")
-    return lo_a <= hi_b and lo_b <= hi_a
+        return 0.0
+    lo = max(a.tier_low if a.tier_low is not None else -1e12, b.tier_low if b.tier_low is not None else -1e12)
+    hi = min(a.tier_high if a.tier_high is not None else 1e12, b.tier_high if b.tier_high is not None else 1e12)
+    return hi - lo + 1 if hi >= lo else 0.0
+
+
+def _counterpart(f: RateFact, table: list[RateFact]) -> Optional[RateFact]:
+    """The row of another table that states the same thing as f: the same tier if that table has it ("$200,000 or
+    less" is its own row, not part of "$832,750 or less"), else the tier overlapping f's the most (a relabeled
+    range: model years 2023-26 on a stale page vs 2024-27 on the rate sheet)."""
+    same = [g for g in table if (g.tier_kind, g.tier_low, g.tier_high) == (f.tier_kind, f.tier_low, f.tier_high)]
+    if same:
+        return same[0]
+    scored = [(_overlap(f, g), g) for g in table]
+    scored = [x for x in scored if x[0] > 0]
+    return max(scored, key=lambda x: x[0])[1] if scored else None
 
 
 def outranked(facts: list[RateFact]) -> dict[int, RateFact]:
-    """Stale facts: id(fact) -> the best fact that beats it (same product, term, metric and an overlapping tier,
-    a strictly better source by R1/R2, and a different value). Facts from equally good sources never outrank each
-    other (overlapping "or less" tiers of one table are different tiers, not a conflict)."""
+    """Stale facts: id(fact) -> the fact that beats it: its counterpart in the best table that is a strictly better
+    source by R1/R2 (same product, term and metric), when that counterpart states a different value. Facts from
+    equally good sources never outrank each other."""
     groups: dict[tuple, list[RateFact]] = {}
     for f in facts:
         groups.setdefault(_question_key(f), []).append(f)
     out: dict[int, RateFact] = {}
     for fs in groups.values():
-        fs = sorted(fs, key=lambda f: (source_key(f), f.url, f.table_line))
-        for i, f in enumerate(fs):
-            for g in fs[:i]:
-                if source_key(g) < source_key(f) and g.numbers != f.numbers and _overlap(f, g):
-                    out[id(f)] = g
+        tables: dict[tuple, list[RateFact]] = {}
+        for f in fs:
+            tables.setdefault((f.url, f.table_line), []).append(f)
+        ranked = sorted(tables.values(), key=lambda t: (min(source_key(f) for f in t), t[0].url, t[0].table_line))
+        for f in fs:
+            for table in ranked:
+                if not min(source_key(g) for g in table) < source_key(f):
+                    break
+                g = _counterpart(f, table)
+                if g is not None:
+                    if g.numbers != f.numbers:
+                        out[id(f)] = g
                     break
     return out
 
