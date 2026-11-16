@@ -2,7 +2,8 @@
 
 No key: quote the best sentence (plus the one after it when it continues the thought), verbatim, and cite its page.
 With OPENAI_API_KEY: the LLM writes 1-3 sentences from the top passages only (llm.py); if it fails or states a
-number the passages don't contain, the quoted answer (or a refusal) is used instead; NOT_FOUND means refuse.
+number the passages don't contain, the quoted answer (or a refusal) is used instead; NOT_FOUND means refuse. A
+recurring statistic (see below) is always quoted, so every year's version is kept.
 
 Refusal gate (strict on purpose: a confident wrong answer costs more than "please contact us"): the passage must
 cover most of the question's information (idf-weighted concepts), so a question about something the site never
@@ -150,10 +151,12 @@ def _sources(snap: SnapshotData, picked: list[tuple[str, Hit]], extra: list[Hit]
     return out
 
 
-def _quoted(q: Question, snap: SnapshotData, cs: list[frozenset], hits: list[Hit]) -> Optional[Answer]:
+def _quoted(q: Question, snap: SnapshotData, cs: list[frozenset],
+            hits: list[Hit]) -> tuple[Optional[Answer], bool]:
+    """The quoted answer, and whether it lists several dated versions of one statistic."""
     found = _pick_sentences(q, cs, hits, snap.index)
     if not found:
-        return None
+        return None, False
     best, chosen = found
     picked = [(" ".join(chosen), best)]
     twins = _twins(chosen[0], best, snap.index)
@@ -161,11 +164,11 @@ def _quoted(q: Question, snap: SnapshotData, cs: list[frozenset], hits: list[Hit
         picked = sorted([(chosen[0], best), *twins], key=lambda x: x[1].passage.published or "", reverse=True)
     body = clean_text(" ".join(s for s, _ in picked))
     if not body:
-        return None                     # every sentence held a banned phrase: refuse rather than answer nothing
+        return None, False              # every sentence held a banned phrase: refuse rather than answer nothing
     title = best.passage.title.split(" | ")[0].strip()
     text = f"{body} (Source: Dupaco's “{title}” page.)"
     extra = [h for h in hits[:5] if h is not best]
-    return Answer(text=text, sources=_sources(snap, picked, extra), confident=True)
+    return Answer(text=text, sources=_sources(snap, picked, extra), confident=True), bool(twins)
 
 
 def search_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
@@ -175,7 +178,10 @@ def search_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
     hits = snap.index.search(cs, k=10)
     if not hits:
         return None
-    if llm.available():
+    quoted, versions = _quoted(q, snap, cs, hits)
+    # A statistic reported every year: the quoted answer already lists every version, newest first. An LLM summary
+    # tends to keep only the newest, which drops the year a question like "last year" may mean.
+    if llm.available() and not versions:
         candidates = [h for h in hits[:6] if snap.index.coverage(cs, h.matched) >= LLM_GATE]
         if candidates:
             reply = llm.answer(q.raw, [(h.passage.title, h.passage.url, h.passage.published, h.passage.text)
@@ -185,4 +191,4 @@ def search_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
             evidence = " ".join(h.passage.text for h in candidates)
             if reply and numbers_ok(reply, evidence + " " + q.raw) and clean_text(reply):
                 return Answer(text=clean_text(reply), sources=_sources(snap, [], candidates), confident=True)
-    return _quoted(q, snap, cs, hits)
+    return quoted

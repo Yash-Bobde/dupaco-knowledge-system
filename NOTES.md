@@ -78,6 +78,8 @@ OpenAI model from the top search passages, in 1–3 sentences:
 - The prompt says to use only the passages, copy numbers exactly, never ask back, and reply `NOT_FOUND` if the
   passages don't answer (→ refusal).
 - A number in the reply that isn't in the passages → the reply is discarded and the quoted-sentence answer is used.
+- A recurring statistic with several dated versions is always quoted, not sent to the model: in testing the model
+  kept only the newest year, which loses the answer to "last year".
 - The call has a hard 10 s deadline. Any error falls back to the quoted answer; after an auth error or 3
   failures in a row the LLM is switched off for the run.
 - No LLM is used at ingest, and rate, branch and company-fact answers never use it.
@@ -104,10 +106,13 @@ contradiction, unless a stale copy is still live.
 - No randomness: iteration is sorted, and answers are cached by (snapshot, date, normalized question), so a
   repeated question returns identical text.
 
-## Results on the public practice set (no API key)
+## Results on the public practice set
 
-- Accuracy 0.969. All 39 scoreable items get 1.0, with 0 trap values and consistency 1.0. dup-005 has no
-  required tokens and is scored only by the optional judge.
+- No API key: accuracy 0.969. All 39 scoreable items get 1.0, with 0 trap values and consistency 1.0. dup-005
+  has no required tokens and is scored only by the optional judge.
+- With `OPENAI_API_KEY` (`gpt-4.1-mini`): the same 0.969. Only 4 of the 40 questions reach the model; answers
+  with it take p95 about 1.2 s. On held-out open-ended questions its answers were clearly better than the quoted
+  sentences.
 - Our own conflicts gold (7 entries built from the public traps) matches 7 of 7 with the right winners.
 - Questions written outside the public set were checked by hand: rate, branch, company-fact, open-ended and
   should-refuse questions.
