@@ -1,13 +1,16 @@
 """Route a question to the answer type that can handle it; refuse when none can.
 
-Order: rate questions (truth table) -> branch questions (addresses, hours, closures) -> refusal. Each answer type
-returns None when the question isn't one it can read, so the next one gets a turn.
+Order: rate questions (truth table) -> branch questions (addresses, hours, closures) -> link questions (rates pages,
+locator, join, online banking) -> company facts (branch count, Forbes, routing number, phone, who can join) -> refusal.
+Each answer type returns None when the question isn't one it can read, so the next one gets a turn.
 """
 from __future__ import annotations
 
 from typing import Optional
 
 from .answer_branches import branch_answer
+from .answer_claims import claim_answer
+from .answer_links import link_answer
 from .answer_rates import rate_answer
 from .question import read
 from .reply import refusal
@@ -26,5 +29,6 @@ def answer_question(store: Store, question: str, as_of: Optional[str] = None,
     key = (snap.snapshot_id, ref_date, q.text)
     cache = {} if cache is None else cache
     if key not in cache:
-        cache[key] = rate_answer(q, snap) or branch_answer(q, snap, ref_date) or refusal()
+        cache[key] = (rate_answer(q, snap) or branch_answer(q, snap, ref_date) or link_answer(q, snap)
+                      or claim_answer(q, snap, ref_date) or refusal())
     return cache[key]

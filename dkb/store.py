@@ -1,4 +1,4 @@
-"""Versioned store: every snapshot's cleaned pages, tables and rate facts, and the snapshot to use for a date.
+"""Versioned store: every snapshot's cleaned pages and extracted facts, and the snapshot to use for a date.
 
 R0: an `as_of` date uses the newest snapshot taken on or before that date; no date uses the latest snapshot.
 A date before the first snapshot falls back to the oldest one (the earliest view of the site we have).
@@ -10,7 +10,9 @@ from typing import Optional
 
 from . import branches as branch_records
 from .branches import Branch, Closure
+from .claims import Claim, Membership, SiteValue, article_claims, membership, site_values
 from .facts import RateFact, rate_facts
+from .links import Link, page_links
 from .pages import CleanPage, clean_page
 from .tables import Table, find_tables
 
@@ -24,6 +26,11 @@ class SnapshotData:
     facts: list[RateFact] = field(default_factory=list)
     branches: list[Branch] = field(default_factory=list)        # from /contact and branch-opening releases
     closures: list[Closure] = field(default_factory=list)       # branch-closure announcements
+    claims: list[Claim] = field(default_factory=list)           # dated company claims (branch count, Forbes...)
+    site: dict[str, SiteValue] = field(default_factory=dict)    # routing number, main phone
+    membership: Optional[Membership] = None                     # who can join, from the join page
+    links: list[Link] = field(default_factory=list)             # every anchor -> target on the site
+    live_paths: set[str] = field(default_factory=set)           # paths crawled in this snapshot
 
 
 class Store:
@@ -31,7 +38,7 @@ class Store:
         self.snapshots: list[SnapshotData] = []   # oldest first
 
     def add(self, snapshot) -> SnapshotData:
-        """Clean every page of a harness Snapshot, parse its tables and extract its rate facts."""
+        """Clean every page of a harness Snapshot; extract its rate facts, branches, claims and links."""
         data = SnapshotData(snapshot.snapshot_id, snapshot.taken_on)
         for p in snapshot.pages:
             page = clean_page(p.url, p.title, p.markdown)
@@ -39,7 +46,13 @@ class Store:
             data.pages[p.url] = page
             data.tables[p.url] = tables
             data.facts.extend(rate_facts(snapshot.snapshot_id, page, tables))
-        data.branches, data.closures = branch_records.extract(list(data.pages.values()))
+            data.claims.extend(article_claims(page))
+            data.links.extend(page_links(page))
+        pages = list(data.pages.values())
+        data.branches, data.closures = branch_records.extract(pages)
+        data.site = site_values(pages)
+        data.membership = membership(pages)
+        data.live_paths = {pg.path for pg in pages if pg.kind != "junk"}
         self.snapshots.append(data)
         self.snapshots.sort(key=lambda s: s.taken_on)
         return data

@@ -51,8 +51,10 @@ def branch_answer(q: Question, snap: SnapshotData, ref_date: str) -> Optional[An
     text = q.text
     if not BRANCH_WORDS.search(text) and not CLOSE_WORDS.search(text):
         return None
-    if LINK_WORDS.search(text) or re.search(r"\bhow many\b", text):
+    if LINK_WORDS.search(text) or re.search(r"\bhow many\b|\b\d+ (?:branch|location|office)", text):
         return None    # locator links and branch counts are answered elsewhere
+    if re.search(r"\bmy (?:address|phone|e-?mail|contact)", text):
+        return None    # the member's own details ("change my address"), not a branch's
     closures = [c for c in snap.closures if (c.published or "") <= ref_date and _named(c.keys, text)]
     if closures:
         return _closure(closures[0], q, snap, ref_date)
