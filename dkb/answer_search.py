@@ -56,28 +56,46 @@ def sentences(text: str) -> list[str]:
 
 
 def _quotable(s: str) -> bool:
-    return len(s.split()) >= MIN_WORDS and not s.endswith("?") and not s.startswith(("“", '"'))
+    """A real sentence: long enough, not a question, not someone's quote, not a lead-in to a list."""
+    return (len(s.split()) >= MIN_WORDS and not s.endswith(("?", ":")) and not s.startswith(("“", '"')))
 
 
-def _pick_sentences(cs: list[frozenset], hits: list[Hit], index: Index) -> Optional[tuple[Hit, list[str]]]:
+# "What is the late fee?" / "How much is ...?" want a value: a sentence without one doesn't answer it.
+VALUE_Q = re.compile(r"\b(?:how much|how many|what(?:'s| is| are) the (?:\w+ )?(?:fee|fees|cost|price|charge|limit|"
+                     r"minimum|maximum|amount|penalty))\b")
+_HAS_VALUE = re.compile(r"\d|\b(?:free|no (?:fee|charge|cost)|not charge|doesn'?t charge|at no (?:extra )?cost)\b", re.I)
+
+
+def _pick_sentences(q: Question, cs: list[frozenset], hits: list[Hit],
+                    index: Index) -> Optional[tuple[Hit, list[str]]]:
     """The best sentence among the passages that pass the gate: most question information inside the sentence
     itself (headings count too, for FAQ answers), lightly weighted by page authority, then the better passage,
-    then the earlier position on the page (a press release's lead says the most)."""
+    then the earlier position on the page (a press release's lead says the most).
+    A sentence must mention the question's most distinctive concept (in itself, its heading or its page title),
+    must hold a value when the question asks for one, and business pages count less unless the question says
+    business (the same "personal unless business" rule the rate answers use)."""
     best = None
+    rarest = max(cs, key=index.concept_idf)
+    wants_value = bool(VALUE_Q.search(q.text))
+    business_q = "business" in q.text
     page_rank: dict[str, int] = {}
     for h in hits:
         page_rank.setdefault(h.passage.url, len(page_rank))
-    for rank, h in enumerate(hits):
+    for h in hits:
         if index.coverage(cs, h.matched) < GATE:
             continue
         sents = sentences(h.passage.text)
         context = set(terms(h.passage.heading))
+        title = set(terms(h.passage.title))
+        weight = _authority(h) ** 0.3 * (0.8 if h.passage.path.startswith("/business") and not business_q else 1.0)
         for j, s in enumerate(sents):
-            if not _quotable(s):
+            if not _quotable(s) or (wants_value and not _HAS_VALUE.search(s)):
                 continue
             inside = set(terms(s))
+            if not rarest & (inside | context | title):
+                continue
             score = sum(index.concept_idf(c) * (1.0 if c & inside else 0.6 if c & context else 0.0) for c in cs)
-            key = (-round(score * _authority(h) ** 0.3, 3), page_rank[h.passage.url], h.passage.pos, j)
+            key = (-round(score * weight, 3), page_rank[h.passage.url], h.passage.pos, j)
             if best is None or key < best[0]:
                 best = (key, h, sents, j)
     if best is None:
@@ -126,8 +144,8 @@ def _sources(snap: SnapshotData, picked: list[tuple[str, Hit]], extra: list[Hit]
     return out
 
 
-def _quoted(snap: SnapshotData, cs: list[frozenset], hits: list[Hit]) -> Optional[Answer]:
-    found = _pick_sentences(cs, hits, snap.index)
+def _quoted(q: Question, snap: SnapshotData, cs: list[frozenset], hits: list[Hit]) -> Optional[Answer]:
+    found = _pick_sentences(q, cs, hits, snap.index)
     if not found:
         return None
     best, chosen = found
@@ -136,7 +154,8 @@ def _quoted(snap: SnapshotData, cs: list[frozenset], hits: list[Hit]) -> Optiona
     if twins:
         picked = sorted([(chosen[0], best), *twins], key=lambda x: x[1].passage.published or "", reverse=True)
     body = " ".join(s for s, _ in picked)
-    text = clean_text(f"{body} (Source: Dupaco's “{best.passage.title}” page.)")
+    title = best.passage.title.split(" | ")[0].strip()
+    text = clean_text(f"{body} (Source: Dupaco's “{title}” page.)")
     if not text:
         return None
     extra = [h for h in hits[:5] if h is not best]
@@ -160,4 +179,4 @@ def search_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
             evidence = " ".join(h.passage.text for h in candidates)
             if reply and numbers_ok(reply, evidence + " " + q.raw) and clean_text(reply):
                 return Answer(text=clean_text(reply), sources=_sources(snap, [], candidates), confident=True)
-    return _quoted(snap, cs, hits)
+    return _quoted(q, snap, cs, hits)

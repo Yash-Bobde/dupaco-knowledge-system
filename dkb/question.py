@@ -43,7 +43,7 @@ FAMILY_WORDS: list[tuple[re.Pattern, str]] = [(re.compile(p), f) for p, f in [
     (r"\bauto\b|\bcars?\b|vehicle|motorcycle|\btruck", "auto"),
     (r"mortgage|home loan|refinanc|\d+[- ]year fixed", "mortgage"),
     (r"\biras?\b|\broth\b|traditional|retirement", "ira"),
-    (r"certificate|\bcds?\b|term[- ]share", "certificate"),
+    (r"certificate|\bcds?\b|term[- ]share|\bjumbo\b(?!.*(?:mortgage|home loan))|\bmonth special\b", "certificate"),
     (r"money market", "money_market"),
     (r"checking", "checking"),
     (r"credit cards?|\bvisa\b|\bcards\b", "credit_card"),

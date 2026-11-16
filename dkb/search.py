@@ -53,7 +53,7 @@ def _stem(w: str) -> str:
         w = w[:-3] + "y"
     elif len(w) > 3 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
         w = w[:-1]
-    return w[:7]          # crude prefix stem: flexible / flexibility -> "flexibl"
+    return w[:6]          # crude prefix stem: flexible / flexibility -> "flexib"
 
 
 def terms(text: str) -> list[str]:

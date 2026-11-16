@@ -23,6 +23,12 @@ from .store import SnapshotData
 from .truth import ANY, Pick, matching, pick, source_key, winning_table
 
 DEPOSIT_FAMILIES = {"savings", "money_market", "certificate", "ira", "hsa", "checking"}
+OFFER_Q = re.compile(r"\b(?:offer|offers|provide|provides|sell|available)\b")
+# An "offer" question gets the rate list only when it names a product family by its noun ("business credit cards"),
+# not through a loose word ("student loan refinancing" is not a mortgage refinance).
+OFFER_NOUN = re.compile(r"\b(?:credit cards?|visa|checking|savings|certificates?|cds?|money markets?|iras?|auto loans?|"
+                        r"car loans?|mortgages?|home equity|heloc)\b")
+OFFER_OTHER = re.compile(r"\bstudent|\binsurance|\bbusiness loans?\b")
 OFFICIAL_KINDS = {"rate_sheet", "product"}
 FAMILY_DEFAULT = {"savings": "Share Savings", "money_market": "Investor's Choice Money Market",
                   "mortgage": "Fixed Conventional Mortgage"}
@@ -173,7 +179,9 @@ def _values(fs: list[RateFact]) -> str:
 def rate_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
     """Answer a rate question from the truth table, or None if this isn't a rate question we can read.
     Link questions ("what link shows certificate rates?") are left to the link answers."""
-    if not q.families or not q.rate_words or LINK_WORDS.search(q.text):
+    offer = (q.yes_no and not q.rate_words and bool(OFFER_Q.search(q.text)) and bool(OFFER_NOUN.search(q.text))
+             and not OFFER_OTHER.search(q.text))                          # "Does Dupaco offer business credit cards?"
+    if not q.families or not (q.rate_words or offer) or LINK_WORDS.search(q.text):
         return None
     if q.not_on_site:
         return refusal()
@@ -209,6 +217,8 @@ def rate_answer(q: Question, snap: SnapshotData) -> Optional[Answer]:
         text = f"The {q.superlative} {r.product} {fs[-1].metric} is {fs[-1].value}{_details(r)}."
     else:
         text = " ".join(f"{_label(r)}: {_values(fs)}." for r, fs in lines)
+        if offer:
+            text = f"Yes. {text}"
     if q.date_phrase and text[:3] not in ("Yes", "No."):
         text = f"As of {q.date_phrase}: {text}"
 
